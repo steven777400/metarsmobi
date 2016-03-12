@@ -1,0 +1,347 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>METARs Mobile</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="favicon.png">
+
+    <link rel="stylesheet" href="//code.jquery.com/mobile/1.4.4/jquery.mobile-1.4.4.min.css" />
+    <style>
+        .tt
+        {
+            font-family: monospace;
+            margin-bottom: 0.5em;
+        }
+
+        .IFR
+        {
+            color: red;
+        }
+
+        .MVFR
+        {
+            color: MediumPurple;
+        }
+
+        .QVFR
+        {
+            color: goldenrod;
+        }
+
+        .worstStation
+        {
+            /* want this to appear above the text that follows it */
+            position: absolute;
+            margin-top: -1em;
+            margin-left: 0.5em;
+            font-size: x-small;
+            color: gray;            
+        }
+            .worstStation.lvl
+            {
+                margin-left: -4em;
+            }
+
+        section.worst p.tt
+        {
+            margin-top: 15px;
+            line-height: 2em;
+        }
+
+        .dist
+        {
+            color: gray;
+            font-size: smaller;
+            margin-left: 1em;
+        }
+
+        .age
+        {
+            font-size: x-small;
+            color: gray;
+            margin-bottom: -1.5em;
+        }
+
+            .age .old
+            {
+                color: red;
+                font-weight: bold;
+            }
+
+        #message
+        {
+            text-align: center;
+            font-style: italic;
+        }
+
+        #currentTime
+        {
+            text-align: center;
+            font-style: italic;
+        }
+
+        .buttons
+        {
+            float: right;
+            margin-right: 8px;
+            margin-top: 4px;
+            margin-bottom: 4px;
+        }
+
+            .buttons a
+            {
+                margin-right: 12px;
+            }
+
+        ul.ui-listview li.ui-li-static p
+        {
+            white-space: normal !important;
+        }
+
+        section
+        {
+            margin-bottom: 1em;
+        }
+
+            section .ui-bar .buttons
+            {
+                margin-bottom: -10px;
+                margin-top: -10px;
+            }
+
+            section .ui-bar
+            {
+                border-top-left-radius: 5px;
+                border-top-right-radius: 5px;
+            }
+
+            section .ui-body
+            {
+                border-top-width: 0;
+                border-bottom-left-radius: 5px;
+                border-bottom-right-radius: 5px;
+            }
+
+        .favorite
+        {
+            background-color: yellow !important;
+        }
+    </style>
+    <script src="//code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="//code.jquery.com/mobile/1.4.4/jquery.mobile-1.4.4.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/knockout/3.1.0/knockout-min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min.js"></script>
+    <script src="latlon.js"></script>
+    <script src="metars.js"></script>
+</head>
+<body>
+
+    <div data-role="page" id="metars">
+
+        <div data-role="header" data-position="fixed">
+            <span class="buttons">
+                <a id="btnLocation" class="ui-btn ui-shadow ui-corner-all ui-icon-location ui-btn-icon-notext">Locate</a>
+                <a href="#settings" id="btnSettings" class="ui-btn ui-shadow ui-corner-all ui-icon-gear ui-btn-icon-notext">Settings</a>
+            </span>
+            <form id="frmSearch" style="margin-right: 108px;">
+                <label for="search-ids" class="ui-hidden-accessible">ICAO Identifiers</label>
+                <input type="search" name="search-ids" id="search-ids" value=""
+                    autocomplete="off" placeholder="ICAO Identifiers">
+            </form>
+
+        </div>
+
+        <div role="main" class="ui-content">
+            <p id="message" data-bind="visible: message"><span data-bind="    text: message"></span></p>
+
+
+
+            <div id="target" data-bind="foreach: stations">
+                <section data-bind="css: sectioncls">
+
+                    <div class="ui-bar ui-bar-a">
+
+                        <h3>
+
+                            <span data-bind="text: id, css: flightcls"></span>
+                            <span data-bind="if: $data.latlon && viewModel.myOrigin()">
+                                <span class="dist" data-bind="text: distDir(latlon, viewModel.myOrigin())"></span>
+                            </span>
+
+                        </h3>
+                    </div>
+                    <div class="ui-body ui-body-a">
+                        <p class="age" data-bind="if: $data.metarTime">
+                            <span data-bind="text: calculateAge(viewModel.currentTime(), metarTime), css: { old: viewModel.currentTime().getTime() - metarTime.getTime() > 1000 * 60 * 60 }"></span>
+                        </p>
+                        <p class="tt" data-bind="html: metarHtml"></p>
+
+
+                        <div data-bind="if: viewModel.showTAFs() === 'true'">
+                            <p class="age" data-bind="if: $data.tafTime">
+                                <span data-bind="text: calculateAge(viewModel.currentTime(), tafTime)"></span>
+                            </p>
+                            <p class="tt">
+                                <span data-bind="html: $data.tafHtml"></span>
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+
+        <div data-role="footer" data-position="fixed" id="currentTime">
+            <span data-bind="text: formatDate(currentTime())"></span>
+            <span data-bind="if: loadTime">
+                <span>- Data As-Of <span data-bind="text: formatDate(loadTime())"></span></span>
+            </span>
+        </div>
+
+
+        <div data-role="panel" id="settings" data-position="left" data-display="overlay">
+
+            <h3>Settings</h3>
+            <form>
+
+                <label for="show-tafs">Show TAFs:</label>
+                <select id="show-tafs" data-role="flipswitch" data-bind="value: showTAFs">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                </select>
+
+                <label for="use-location">Use Location on startup:</label>
+                <select id="use-location" data-role="flipswitch" data-bind="value: useLocation">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                </select>
+
+                <label for="range">Range (nm) From GPS Location:</label>
+                <input name="range" id="range" data-highlight="true" min="1" max="99" type="range"
+                    data-bind="value: range">
+            </form>
+
+            <h3>Color Codes</h3>
+            <ul data-role="listview">
+                <li>
+                    <p><span class="IFR">IFR</span>: Vis < 3SM, BKN/OVC < 010</p>
+                </li>
+                <li>
+                    <p><span class="MVFR">MVFR</span>: Vis <= 5SM, BKN/OVC <= 030</p>
+                </li>
+                <li>
+                    <p><span class="QVFR">QVFR</span>: Vis <= 6SM, SCT < 020, Wind >= 20KT, Temp-Dew spread <= 3</p>
+                </li>
+            </ul>
+
+            <h3>About</h3>
+            <p>Copyright &copy; 2014 <a href="http://www.kolls.net">Steve Kollmansberger</a></p>
+
+            <p>Data from <a href="http://aviationweather.gov/dataserver">NOAA AWC Data Server</a></p>
+
+            <p>Run <a href="tests.html" target="_blank">unit tests</a>.</p>
+
+
+
+
+        </div>
+
+    </div>
+
+    <script>
+
+        function KOCookie(field) {
+            if ($.cookie(field))
+                viewModel[field]($.cookie(field));
+
+            viewModel[field].subscribe(function (newValue) {
+
+                $.cookie(field, newValue, { expires: 365 });
+            });
+
+
+        }
+
+        var viewModel = {
+            applyDistanceFilter: ko.observable(true),
+            metararr: ko.observableArray(),
+            tafarr: ko.observableArray(),
+            stations: ko.observableArray(),
+            myOrigin: ko.observable(),
+            message: ko.observable(),
+            currentTime: ko.observable(new Date()),
+            loadTime: ko.observable(),
+            showTAFs: ko.observable("true"),
+            useLocation: ko.observable("true"),
+            range: ko.observable(50).extend({ throttle: 500 }),
+            favorites: ko.observableArray(),
+            hides: ko.observableArray()
+        }
+
+
+        viewModel.range.subscribe(function () {
+            displayData();
+        });
+
+        $("#metars").on("pagecreate", function (event, ui) {
+
+
+            $.ajaxSetup({ cache: false });
+
+
+            KOCookie('showTAFs');
+            KOCookie('useLocation');
+            KOCookie('range');
+
+            $("#range").val(viewModel.range());
+            $("#range").slider("refresh");
+
+
+            $("#show-tafs").val(viewModel.showTAFs());
+            $("#use-location").val(viewModel.useLocation());
+            $("select[data-role='flipswitch']").flipswitch("refresh");
+
+            setInterval(function () {
+                viewModel.currentTime(new Date());
+            }, 30000);
+
+            ko.applyBindings(viewModel);
+
+
+            if (viewModel.useLocation() === "true")
+                locate();
+
+        });
+
+        $("#btnLocation").click(function (e) {
+            $("#search-ids").val("");
+            locate();
+
+            e.preventDefault();
+        });
+
+
+
+        $("#frmSearch").submit(function (e) {
+
+            viewModel.message(null);
+            viewModel.applyDistanceFilter(false);
+
+            var idents = $("#search-ids").val().split(/[\W,]+/);
+            if (idents.length > 0) {
+                loadData(getMETARsAndTAFsForIdents(idents));
+
+            }
+            e.preventDefault();
+
+
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
